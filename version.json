@@ -1,9 +1,10 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "releaseDate": "2026-06-24",
   "graphChannels": [ "v1.0", "beta" ],
   "apiReferenceVerified": "2026-06-24",
   "minPowerShell": "7.0",
   "requiredModules": [ "Microsoft.Graph.Authentication" ],
-  "notes": "Initial release: numbered TUI for Entra ID Identity Governance (Entitlement Management, Access Reviews, PIM for roles and groups, Lifecycle Workflows, Terms of Use, App Consent) with login status, formatted output, export, a prerequisite installer, and built-in GitHub self-update."
+  "notes": "1.0.1: graceful first run on Windows PowerShell 5.1 - the script now auto-relaunches in pwsh (or guides install) instead of failing with a #requires error. 1.0.0: initial release of the Identity Governance TUI with prerequisite installer and self-update."
 }
+

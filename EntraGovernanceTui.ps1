@@ -1,4 +1,3 @@
-#Requires -Version 7.0
 <#
 .SYNOPSIS
     Entra Tenant Governance TUI — a numbered, menu-driven console tool for the
@@ -32,6 +31,10 @@
 
 .EXAMPLE
     .\EntraGovernanceTui.ps1 -UseDeviceCode -TenantId contoso.onmicrosoft.com
+
+.NOTES
+    Requires PowerShell 7+. If started in Windows PowerShell 5.1, the tool will
+    automatically relaunch itself in 'pwsh' (or guide you to install it).
 #>
 [CmdletBinding()]
 param(
@@ -45,6 +48,71 @@ param(
     [switch]   $LoadOnly
 )
 
+# ----------------------------------------------------------------------------
+# Bootstrap (must stay PowerShell 5.1-parseable): this tool needs PowerShell 7+.
+# If launched in Windows PowerShell 5.1, relaunch transparently in pwsh (same
+# window) or guide the user to install it. We do NOT use a #requires statement so
+# that this friendly handling runs instead of a raw engine error.
+# ----------------------------------------------------------------------------
+if (-not $LoadOnly -and $PSVersionTable.PSVersion.Major -lt 7) {
+    $govSelf = $MyInvocation.MyCommand.Path
+
+    if ($env:GOV_TUI_RELAUNCHED -ne '1') {
+        $govPwshPath = $null
+        $govCmd = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+        if (-not $govCmd) { $govCmd = Get-Command pwsh -ErrorAction SilentlyContinue }
+        if ($govCmd) { $govPwshPath = $govCmd.Source }
+        if (-not $govPwshPath) {
+            foreach ($govp in @((Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'),
+                                (Join-Path ${env:ProgramFiles(x86)} 'PowerShell\7\pwsh.exe'),
+                                (Join-Path $env:LOCALAPPDATA 'Microsoft\powershell\pwsh.exe'))) {
+                if ($govp -and (Test-Path $govp)) { $govPwshPath = $govp; break }
+            }
+        }
+        if ($govPwshPath) {
+            Write-Host 'Entra Governance TUI: switching to PowerShell 7 (pwsh)...' -ForegroundColor Cyan
+            $env:GOV_TUI_RELAUNCHED = '1'
+            $govArgs = @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $govSelf)
+            foreach ($kv in $PSBoundParameters.GetEnumerator()) {
+                $gv = $kv.Value
+                if ($gv -is [System.Management.Automation.SwitchParameter]) {
+                    if ($gv.IsPresent) { $govArgs += ('-' + $kv.Key) }
+                }
+                elseif ($gv -is [array]) { $govArgs += ('-' + $kv.Key); $govArgs += ($gv -join ',') }
+                else { $govArgs += ('-' + $kv.Key); $govArgs += [string]$gv }
+            }
+            & $govPwshPath @govArgs
+            exit $LASTEXITCODE
+        }
+    }
+
+    # pwsh not found (or relaunch already attempted): friendly guidance.
+    Write-Host ''
+    Write-Host '  ===========================================================' -ForegroundColor Yellow
+    Write-Host '   Entra Tenant Governance TUI requires PowerShell 7 or later.' -ForegroundColor Yellow
+    Write-Host ("   You are running Windows PowerShell {0}." -f $PSVersionTable.PSVersion) -ForegroundColor Yellow
+    Write-Host '  ===========================================================' -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host '   Install PowerShell 7, then run this tool again with "pwsh":' -ForegroundColor White
+    Write-Host '       winget install --id Microsoft.PowerShell -e' -ForegroundColor Cyan
+    Write-Host '       # or download from https://aka.ms/powershell' -ForegroundColor Cyan
+    Write-Host ''
+    Write-Host '       pwsh -File .\EntraGovernanceTui.ps1' -ForegroundColor Cyan
+    Write-Host ''
+    $govWg = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if (-not $govWg) { $govWg = Get-Command winget -ErrorAction SilentlyContinue }
+    if ($govWg) {
+        $govAns = Read-Host '   Install PowerShell 7 now via winget? (y/N)'
+        if ($govAns -match '^(y|yes)$') {
+            & $govWg.Source install --id Microsoft.PowerShell -e --source winget --accept-source-agreements --accept-package-agreements
+            Write-Host ''
+            Write-Host '   When the install finishes, close this window and run:' -ForegroundColor Green
+            Write-Host '       pwsh -File .\EntraGovernanceTui.ps1' -ForegroundColor Cyan
+        }
+    }
+    return
+}
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -52,7 +120,7 @@ $ErrorActionPreference = 'Stop'
 
 # Tool identity. Bump $GovVersion + $GovReleaseDate on every published change and
 # mirror them in version.json so the in-tool update check can show "vX -> vY".
-$script:GovVersion         = '1.0.0'
+$script:GovVersion         = '1.0.1'
 $script:GovReleaseDate     = '2026-06-24'
 # Microsoft Graph channels this tool targets, and the date the governance
 # endpoints + permission scopes were last verified against learn.microsoft.com.
@@ -145,7 +213,7 @@ function Get-GovPrereqDefinitions {
             Detail='Modern PowerShell runtime required by this tool.'
             Check = {
                 $ok = $PSVersionTable.PSVersion.Major -ge 7
-                [ordered]@{ Installed=$ok; Version="$($PSVersionTable.PSVersion)"; Note=($ok ? 'OK' : 'Upgrade required') }
+                [ordered]@{ Installed=$ok; Version="$($PSVersionTable.PSVersion)"; Note=$(if ($ok) { 'OK' } else { 'Upgrade required' }) }
             }
             Install = {
                 Write-Host '  PowerShell 7 cannot install itself from within itself.' -ForegroundColor Yellow
@@ -160,7 +228,7 @@ function Get-GovPrereqDefinitions {
                 $repo = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
                 if (-not $repo) { return [ordered]@{ Installed=$false; Version='-'; Note='Not registered' } }
                 $trusted = $repo.InstallationPolicy -eq 'Trusted'
-                [ordered]@{ Installed=$trusted; Version=$repo.InstallationPolicy; Note=($trusted ? 'Trusted' : 'Untrusted (would prompt)') }
+                [ordered]@{ Installed=$trusted; Version=$repo.InstallationPolicy; Note=$(if ($trusted) { 'Trusted' } else { 'Untrusted (would prompt)' }) }
             }
             Install = {
                 if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
@@ -674,7 +742,7 @@ function Get-GovContext {
         $scopeCount = if ($ctx.Scopes) { @($ctx.Scopes).Count } else { 0 }
         Write-Host '  Status : ' -NoNewline; Write-Host 'CONNECTED' -ForegroundColor Green
         Write-Host '  Account: ' -NoNewline; Write-Host $who -ForegroundColor White
-        Write-Host '  Tenant : ' -NoNewline; Write-Host ($ctx.TenantId  ?? '<n/a>') -ForegroundColor White
+        Write-Host '  Tenant : ' -NoNewline; Write-Host $(if ($ctx.TenantId) { $ctx.TenantId } else { '<n/a>' }) -ForegroundColor White
         Write-Host '  Auth   : ' -NoNewline; Write-Host ("{0}   Scopes: {1}   Graph: {2}" -f $ctx.AuthType, $scopeCount, (Get-GovEffectiveVersion)) -ForegroundColor White
     }
     else {
@@ -775,7 +843,8 @@ function Connect-Gov {
         $ctx = Get-GovContext
         if ($ctx) {
             $script:Gov.Scopes = $scopeList
-            Write-Host ("Signed in: {0}" -f ($ctx.Account ?? $ctx.AppName ?? $ctx.ClientId)) -ForegroundColor Green
+            $govWho = if ($ctx.Account) { $ctx.Account } elseif ($ctx.AppName) { $ctx.AppName } else { $ctx.ClientId }
+            Write-Host ("Signed in: {0}" -f $govWho) -ForegroundColor Green
         }
     }
     catch {
@@ -855,10 +924,10 @@ function Get-GovActionUri {
 
     $q = @()
     if ($script:Gov.Top -gt 0)              { $q += ('$top='     + $script:Gov.Top) }
-    $filter  = $script:Gov.Filter  ?? $Action.Filter
-    $select  = $script:Gov.Select  ?? $Action.Select
-    $expand  = $script:Gov.Expand  ?? $Action.Expand
-    $orderby = $script:Gov.OrderBy ?? $Action.OrderBy
+    $filter  = if ($null -ne $script:Gov.Filter)  { $script:Gov.Filter }  else { $Action.Filter }
+    $select  = if ($null -ne $script:Gov.Select)  { $script:Gov.Select }  else { $Action.Select }
+    $expand  = if ($null -ne $script:Gov.Expand)  { $script:Gov.Expand }  else { $Action.Expand }
+    $orderby = if ($null -ne $script:Gov.OrderBy) { $script:Gov.OrderBy } else { $Action.OrderBy }
     if ($filter)  { $q += ('$filter='  + ($filter  -replace ' ', '%20')) }
     if ($select)  { $q += ('$select='  + $select) }
     if ($expand)  { $q += ('$expand='  + $expand) }
@@ -992,7 +1061,8 @@ function Export-GovResult {
     if (-not $Path) {
         $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
         $name  = if ($script:Gov.LastAction) { ($script:Gov.LastAction.Title -replace '[^\w]+','_') } else { 'governance' }
-        $ext   = switch (($Format ?? $script:Gov.Format)) { 'Json' {'json'} 'Csv' {'csv'} 'Table' {'csv'} default {'json'} }
+        $govFmt = if ($Format) { $Format } else { $script:Gov.Format }
+        $ext    = switch ($govFmt) { 'Json' {'json'} 'Csv' {'csv'} 'Table' {'csv'} default {'json'} }
         $Path  = Join-Path $script:Gov.ExportDir ("{0}_{1}.{2}" -f $name, $stamp, $ext)
     }
     if (-not [System.IO.Path]::IsPathRooted($Path)) { $Path = Join-Path $script:Gov.ExportDir $Path }

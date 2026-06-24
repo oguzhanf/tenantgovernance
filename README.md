@@ -8,7 +8,7 @@ with simple commands, **installs its own prerequisites** from a menu, and can **
 from GitHub** with a single keystroke.
 
 > Repository: <https://github.com/oguzhanf/tenantgovernance>
-> Current version: **1.0.0** (2026-06-24) · Graph channels: **v1.0 + beta** · API reference verified **2026-06-24**
+> Current version: **1.0.1** (2026-06-24) · Graph channels: **v1.0 + beta** · API reference verified **2026-06-24**
 
 ---
 
@@ -94,7 +94,9 @@ On first launch:
 2. Press **`L`** → **`1`** to sign in interactively.
 3. Pick a capability by number and explore.
 
-> Requires **PowerShell 7+** (`pwsh`). Windows PowerShell 5.1 is not supported.
+> Requires **PowerShell 7+** (`pwsh`). If you start it in **Windows PowerShell 5.1**
+> (e.g. `.\EntraGovernanceTui.ps1` in the classic console), it **automatically relaunches
+> itself in `pwsh`** — or, if PowerShell 7 isn't installed, shows a one-line install command.
 
 ---
 
