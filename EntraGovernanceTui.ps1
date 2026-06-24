@@ -1361,8 +1361,8 @@ function Show-GovHelp {
 
 # Handles commands available from the MENU prompt. Returns: 'quit' | 'back' | 'handled' | 'none'
 function Invoke-GovMenuCommand {
-    param([string] $Input)
-    $in   = $Input.Trim()
+    param([string] $CommandText)
+    $in   = $CommandText.Trim()
     $verb = ($in -split '\s+', 2)[0].ToLower()
     $arg  = if ($in -match '\s') { ($in -split '\s+', 2)[1] } else { '' }
 
