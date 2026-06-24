@@ -1,0 +1,16 @@
+# User-specific saved settings (may contain a custom scope list / paths)
+EntraGovernanceTui.config.json
+
+# Self-update backups
+*.bak
+*.bak-*
+
+# Exported data
+*.export.json
+governance_*.json
+governance_*.csv
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
+.vscode/
